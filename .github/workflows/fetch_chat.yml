@@ -1,0 +1,21 @@
+name: Fetch Twitch Chat
+
+on:
+  workflow_dispatch:  # lets you run manually from GitHub
+
+jobs:
+  fetch-chat:
+    runs-on: ubuntu-latest
+    env:
+      TWITCH_CLIENT_ID: ${{ secrets.TWITCH_CLIENT_ID }}
+      TWITCH_CLIENT_SECRET: ${{ secrets.TWITCH_CLIENT_SECRET }}
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Run script
+        run: python fetch_chat.py
