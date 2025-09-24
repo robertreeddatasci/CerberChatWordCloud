@@ -1,0 +1,33 @@
+import pandas as pd
+import glob
+import os
+
+INPUT_FOLDER = "Twitch Chat"
+
+records = []
+file_counts = {}  # store line counts per file
+
+for f in glob.glob(os.path.join(INPUT_FOLDER, "*.csv")):
+    line_count = 0
+    with open(f, "r", encoding="utf-8") as infile:
+        header = infile.readline().strip()  # read header row
+        for line in infile:
+            parts = line.rstrip("\n").split(",", 3)  # split into 4 parts MAX
+            if len(parts) == 4:
+                time, user_name, user_color, message = parts
+                if message.startswith('"') and message.endswith('"'):
+                    message = message[1:-1]
+                records.append([time, user_name, user_color, message])
+                line_count += 1
+            else:
+                print(f"⚠️ Skipped malformed line in {f}: {line[:80]}...")
+    file_counts[os.path.basename(f)] = line_count
+
+# Build DataFrame manually
+df = pd.DataFrame(records, columns=["time", "user_name", "user_color", "message"])
+
+# Print per-file stats
+print("✅ File loading complete. Lines per file:")
+for file, count in file_counts.items():
+    print(f"  {file}: {count} lines")
+print(f"TOTAL: {len(df)} messages across {len(file_counts)} files.")

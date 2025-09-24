@@ -132,64 +132,68 @@ def is_meaningful(text):
 
 # --- STEP 1: Load all CSV files ---
 all_files = glob.glob(os.path.join(INPUT_FOLDER, "*.csv"))
+print(all_files)
 if not all_files:
     raise ValueError(f"No CSV files found in {INPUT_FOLDER}")
 
 dfs = []
 for f in all_files:
-    df = pd.read_csv(f)
+    df = pd.read_csv(f, quotechar='"', engine="python", usecols=[0,1,2,3])
+
     df.columns = [c.lower() for c in df.columns]  # normalize column names
     df["source_file"] = os.path.basename(f)      # keep track of file
     dfs.append(df)
 
-# Combine all CSVs into one DataFrame
-combined_df = pd.concat(dfs, ignore_index=True)
-messages = combined_df["message"].dropna().tolist()
-print(f"Loaded {len(messages)} messages from {len(all_files)} CSV files.")
+print(len(dfs))
 
-# --- STEP 2: Define stopwords ---
-stopwords = set(STOPWORDS)
-stopwords.update(["lol", "lmao", "pog", "gg", "haha"])  # common chat noise
+# # Combine all CSVs into one DataFrame
+# combined_df = pd.concat(dfs, ignore_index=True)
+# messages = combined_df["message"].dropna().tolist()
+# print(f"Loaded {len(messages)} messages from {len(all_files)} CSV files.")
 
-# --- STEP 3: Generate WordCloud for ALL messages ---
-print("Generating full chat word cloud...")
-all_text = " ".join(messages)
-wordcloud_all = WordCloud(
-    width=4000, height=2000,
-    background_color="white",
-    stopwords=stopwords,
-    collocations=False,
-    min_font_size=10
-).generate(all_text)
+# # --- STEP 2: Define stopwords ---
+# stopwords = set(STOPWORDS)
+# stopwords.update(["lol", "lmao", "pog", "gg", "haha"])  # common chat noise
 
-plt.figure(figsize=(40, 20), dpi=300)
-plt.imshow(wordcloud_all, interpolation="bilinear")
-plt.axis("off")
-plt.tight_layout(pad=0)
-plt.savefig(OUTPUT_ALL, dpi=300)
-plt.close()
+# # --- STEP 3: Generate WordCloud for ALL messages ---
+# print("Generating full chat word cloud...")
+# all_text = " ".join(messages)
+# wordcloud_all = WordCloud(
+#     width=4000, height=2000,
+#     background_color="white",
+#     stopwords=stopwords,
+#     collocations=False,
+#     min_font_size=10
+# ).generate(all_text)
 
-# --- STEP 4: Filter meaningful messages ---
-meaningful = combined_df[combined_df["message"].apply(is_meaningful)]["message"].tolist()
-print(f"Generating meaningful chat word cloud with {len(meaningful)} messages...")
+# plt.figure(figsize=(40, 20), dpi=300)
+# plt.imshow(wordcloud_all, interpolation="bilinear")
+# plt.axis("off")
+# plt.tight_layout(pad=0)
+# plt.savefig(OUTPUT_ALL, dpi=300)
+# plt.close()
 
-meaningful_text = " ".join(meaningful)
-wordcloud_meaningful = WordCloud(
-    width=4000, height=2000,
-    background_color="white",
-    stopwords=stopwords,
-    collocations=False,
-    min_font_size=10
-).generate(meaningful_text)
+# # --- STEP 4: Filter meaningful messages ---
+# meaningful = combined_df[combined_df["message"].apply(is_meaningful)]["message"].tolist()
+# print(f"Generating meaningful chat word cloud with {len(meaningful)} messages...")
 
-plt.figure(figsize=(40, 20), dpi=300)
-plt.imshow(wordcloud_meaningful, interpolation="bilinear")
-plt.axis("off")
-plt.tight_layout(pad=0)
-plt.savefig(OUTPUT_MEANINGFUL, dpi=300)
-plt.close()
+# meaningful_text = " ".join(meaningful)
+# wordcloud_meaningful = WordCloud(
+#     width=4000, height=2000,
+#     background_color="white",
+#     stopwords=stopwords,
+#     collocations=False,
+#     min_font_size=10
+# ).generate(meaningful_text)
 
-print(f"✅ Word clouds saved as {OUTPUT_ALL} and {OUTPUT_MEANINGFUL}")
+# plt.figure(figsize=(40, 20), dpi=300)
+# plt.imshow(wordcloud_meaningful, interpolation="bilinear")
+# plt.axis("off")
+# plt.tight_layout(pad=0)
+# plt.savefig(OUTPUT_MEANINGFUL, dpi=300)
+# plt.close()
+
+# print(f"✅ Word clouds saved as {OUTPUT_ALL} and {OUTPUT_MEANINGFUL}")
 
 
 
