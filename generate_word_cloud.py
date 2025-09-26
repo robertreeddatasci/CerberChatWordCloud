@@ -1,15 +1,17 @@
 import pandas as pd
 import numpy as np
+import csv
 import os
 import re
 import glob
-from wordcloud import WordCloud, STOPWORDS, ImageColorGenerator
-import matplotlib.pyplot as plt
 from PIL import Image
 from datetime import datetime
+from wordcloud import WordCloud, STOPWORDS, ImageColorGenerator
+import matplotlib.pyplot as plt
+
 
 # --- CONFIGURATION ---
-INPUT_FOLDER = "Cerber_Twitch_Chat"
+INPUT_FOLDER = "inputs/Cerber_Twitch_Chat"
 OUTPUT_ALL = "chat_wordcloud.png"
 OUTPUT_MEANINGFUL = "meaningful_chat_wordcloud.png"
 OUTPUT_USERNAMES = "usernames_wordcloud.png"
@@ -62,16 +64,10 @@ def load_chat_data(folder: str) -> pd.DataFrame:
     for f in glob.glob(os.path.join(folder, "*.csv")):
         line_count = 0
         with open(f, "r", encoding="utf-8") as infile:
-            for line in infile:
-                parts = line.rstrip("\n").split(",", 3)
-                if len(parts) == 4:
-                    time, user_name, user_color, message = parts
-                    if message.startswith('"') and message.endswith('"'):
-                        message = message[1:-1]
-                    records.append([time, user_name, user_color, message])
-                    line_count += 1
-                else:
-                    print(f"⚠️ Skipped malformed line in {f}: {line[:80]}...")
+            reader = csv.DictReader(infile)
+            for row in reader:
+                records.append([row["time"], row["user_name"], row["user_color"], row["message"]])
+                line_count += 1
         file_counts[os.path.basename(f)] = line_count
 
     df = pd.DataFrame(records, columns=["time", "user_name", "user_color", "message"])
@@ -80,6 +76,7 @@ def load_chat_data(folder: str) -> pd.DataFrame:
         print(f"  {file}: {count} lines")
     print(f"TOTAL: {len(df)} messages across {len(file_counts)} files.")
     return df
+
 
 def get_counts(df):
     print(df.head())
@@ -232,8 +229,6 @@ def generate_wordcloud_highres(
 
     print(f"✅ Saved high-res word cloud as {output_path}")
     return output_path
-
-
 
 
 # --- MAIN EXECUTION ---
