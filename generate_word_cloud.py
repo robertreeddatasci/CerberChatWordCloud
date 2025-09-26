@@ -8,11 +8,11 @@ from PIL import Image
 import numpy as np
 
 # --- CONFIGURATION ---
-INPUT_FOLDER = "Twitch Chat"
+INPUT_FOLDER = "Vedal_Twitch_Chat"
 OUTPUT_ALL = "chat_wordcloud.png"
 OUTPUT_MEANINGFUL = "meaningful_chat_wordcloud.png"
 OUTPUT_USERNAMES = "usernames_wordcloud.png"
-MASK_IMAGE = np.array(Image.open("Minawan color purple Drawing large.png"))
+MASK_IMAGE = np.array(Image.open("turtle.png")) #"Minawan color purple Drawing large.png"
 h, w = MASK_IMAGE.shape[:2] 
 
 # --- CUSTOM STOPWORDS ---
@@ -94,9 +94,9 @@ def generate_wordcloud(text: str, output_file: str, mask_image=None, use_image_c
         contour_width=3,
         contour_color="black",
         collocations=False,
-        min_font_size=6,
-        max_font_size=70,
-        max_words=5000,
+        min_font_size=10,
+        max_font_size=30,
+        max_words=10000,
         font_path="C:/Users/rober/AppData/Local/Microsoft/Windows/Fonts/RobotoSlab-VariableFont_wght.ttf"
     ).generate(text)
 
@@ -107,7 +107,7 @@ def generate_wordcloud(text: str, output_file: str, mask_image=None, use_image_c
     # --- NEW: Dynamically set figure size to match wordcloud image ---
     wc_array = wordcloud.to_array()
     h_px, w_px = wc_array.shape[:2]
-    dpi = 300
+    dpi = 600
     plt.figure(figsize=(w_px / dpi, h_px / dpi), dpi=dpi)
 
     plt.imshow(wc_array, interpolation="bilinear")
