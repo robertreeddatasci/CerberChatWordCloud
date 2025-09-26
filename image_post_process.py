@@ -30,4 +30,4 @@ def apply_image_mask(wordcloud_path, color_image_path, output_path):
     print(f"✅ Masked image saved to: {output_path}")
 
 # Example usage:
-apply_image_mask("wordcloud.png", "turtle.png", "turtle_wordcloud_colored.png")
+apply_image_mask("usernames_wordcloud.png", "turtle.png", "turtle_wordcloud_colored.png")

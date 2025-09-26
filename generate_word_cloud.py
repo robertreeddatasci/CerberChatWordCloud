@@ -1,18 +1,19 @@
 import pandas as pd
+import numpy as np
+import os
 import re
 import glob
 from wordcloud import WordCloud, STOPWORDS, ImageColorGenerator
 import matplotlib.pyplot as plt
-import os
 from PIL import Image
-import numpy as np
+from datetime import datetime
 
 # --- CONFIGURATION ---
-INPUT_FOLDER = "Vedal_Twitch_Chat"
+INPUT_FOLDER = "Cerber_Twitch_Chat"
 OUTPUT_ALL = "chat_wordcloud.png"
 OUTPUT_MEANINGFUL = "meaningful_chat_wordcloud.png"
 OUTPUT_USERNAMES = "usernames_wordcloud.png"
-MASK_IMAGE = np.array(Image.open("turtle.png")) #"Minawan color purple Drawing large.png"
+MASK_IMAGE = np.array(Image.open("inputs/Minawan color Drawing large.png")) #"Minawan color purple Drawing large.png"
 h, w = MASK_IMAGE.shape[:2] 
 
 # --- CUSTOM STOPWORDS ---
@@ -82,13 +83,34 @@ def load_chat_data(folder: str) -> pd.DataFrame:
 
 
 # --- FUNCTION: Generate Word Cloud ---
-def generate_wordcloud(text: str, output_file: str, mask_image=None, use_image_colors=True):
-    print(f"Generating word cloud → {output_file}")
+def generate_wordcloud(text: str, output_file: str, mask_image=None, use_image_colors=True, timestamp=True):
+    """
+    Generate a word cloud from the given text and save it inside an 'outputs' subfolder.
 
+    Parameters:
+        text (str): The text to generate the word cloud from.
+        output_file (str): The filename to use for saving the image (e.g., 'wordcloud.png').
+        mask_image (ndarray or None): Mask to shape the word cloud (optional).
+        use_image_colors (bool): Whether to recolor the words based on the mask image.
+        timestamp (bool): If True, adds a timestamp to the filename to avoid overwriting.
+    """
+    # --- Ensure outputs folder exists ---
+    os.makedirs("outputs", exist_ok=True)
+
+    # --- Optionally add timestamp to filename ---
+    if timestamp:
+        name, ext = os.path.splitext(output_file)
+        output_file = f"{name}_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}{ext}"
+
+    output_path = os.path.join("outputs", output_file)
+
+    print(f"Generating word cloud → {output_path}")
+
+    # --- Generate the word cloud ---
     wordcloud = WordCloud(
         width=w,
         height=h,
-        background_color="black",
+        background_color="white",
         mask=mask_image,
         stopwords=stopwords,
         contour_width=3,
@@ -100,24 +122,23 @@ def generate_wordcloud(text: str, output_file: str, mask_image=None, use_image_c
         font_path="C:/Users/rober/AppData/Local/Microsoft/Windows/Fonts/RobotoSlab-VariableFont_wght.ttf"
     ).generate(text)
 
+    # --- Recolor based on mask image if requested ---
     if use_image_colors and mask_image is not None:
         image_colors = ImageColorGenerator(mask_image)
         wordcloud.recolor(color_func=image_colors)
 
-    # --- NEW: Dynamically set figure size to match wordcloud image ---
+    # --- Save at high resolution with no padding ---
     wc_array = wordcloud.to_array()
     h_px, w_px = wc_array.shape[:2]
     dpi = 600
     plt.figure(figsize=(w_px / dpi, h_px / dpi), dpi=dpi)
-
     plt.imshow(wc_array, interpolation="bilinear")
     plt.axis("off")
-
-    # Save with no extra whitespace
-    plt.savefig(output_file, dpi=dpi, bbox_inches="tight", pad_inches=0)
+    plt.savefig(output_path, dpi=dpi, bbox_inches="tight", pad_inches=0)
     plt.close()
 
-    print(f"✅ Saved word cloud as {output_file}")
+    print(f"✅ Saved word cloud as {output_path}")
+    return output_path
 
 def get_counts(df):
     print(df.head())
@@ -143,17 +164,17 @@ def get_counts(df):
 if __name__ == "__main__":
     df = load_chat_data(INPUT_FOLDER)
 
-    # # --- ALL MESSAGES ---
-    # all_text = " ".join(df["message"].dropna().astype(str).tolist())
-    # generate_wordcloud(all_text, OUTPUT_ALL, mask_image=MASK_IMAGE)
+    # --- ALL MESSAGES ---
+    all_text = " ".join(df["message"].dropna().astype(str).tolist())
+    generate_wordcloud(all_text, OUTPUT_ALL, mask_image=MASK_IMAGE)
 
-    # # --- MEANINGFUL MESSAGES ---
-    # df["is_meaningful"] = df["message"].apply(is_meaningful)
-    # meaningful_df = df[df["is_meaningful"]]
-    # meaningful_df.to_csv("Meaningful_df.csv", index=False)
+    # --- MEANINGFUL MESSAGES ---
+    df["is_meaningful"] = df["message"].apply(is_meaningful)
+    meaningful_df = df[df["is_meaningful"]]
+    meaningful_df.to_csv("outputs/Meaningful_df.csv", index=False)
 
-    # meaningful_text = " ".join(meaningful_df["message"].dropna().astype(str).tolist())
-    # generate_wordcloud(meaningful_text, OUTPUT_MEANINGFUL, mask_image=MASK_IMAGE)
+    meaningful_text = " ".join(meaningful_df["message"].dropna().astype(str).tolist())
+    generate_wordcloud(meaningful_text, OUTPUT_MEANINGFUL, mask_image=MASK_IMAGE)
 
     usernames = " ".join(df["user_name"].dropna().astype(str).tolist())
     generate_wordcloud(usernames, OUTPUT_USERNAMES, mask_image=MASK_IMAGE)
