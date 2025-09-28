@@ -8,15 +8,14 @@ from PIL import Image
 from datetime import datetime
 from wordcloud import WordCloud, STOPWORDS, ImageColorGenerator
 import matplotlib.pyplot as plt
-from collections import Counter
 
 
 # --- CONFIGURATION ---
-INPUT_FOLDER = "inputs/Vedal_Twitch_Chat"
+INPUT_FOLDER = "inputs/Cerber_Twitch_Chat"
 OUTPUT_ALL = "chat_wordcloud.png"
 OUTPUT_MEANINGFUL = "meaningful_chat_wordcloud.png"
 OUTPUT_USERNAMES = "usernames_wordcloud.png"
-MASK_IMAGE = np.array(Image.open("inputs/Tutel.png")) #"Minawan color purple Drawing large.png"
+MASK_IMAGE = np.array(Image.open("inputs/Minawan color Drawing large.png")) #"Minawan color purple Drawing large.png"
 h, w = MASK_IMAGE.shape[:2] 
 print(f'h:{h}, w:{w}')
 
@@ -198,20 +197,25 @@ def generate_wordcloud_highres(
         w_scaled, h_scaled = 2400*scale_factor, 1600*scale_factor  # fallback size
 
     # --- Generate the word cloud ---
-    wordcloud = WordCloud(
+    wc = WordCloud(
         width=w_scaled,
         height=h_scaled,
-        background_color="white",
+        background_color="black",
         mask=mask_image,
         stopwords=stopwords,
         contour_width=3,
         contour_color="white",
         collocations=False,
-        min_font_size=6,
-        max_font_size=80,
-        max_words=20000,
+        min_font_size=12,
+        max_font_size=50,
+        max_words=10000,
         font_path="C:/Users/rober/AppData/Local/Microsoft/Windows/Fonts/RobotoSlab-VariableFont_wght.ttf"
-    ).generate(text)
+    )
+
+    if isinstance(text, dict):
+        wordcloud = wc.generate_from_frequencies(text)
+    else:
+        wordcloud = wc.generate(text)
 
     # --- Recolor based on mask image if requested ---
     if use_image_colors and mask_image is not None:
@@ -235,30 +239,9 @@ def generate_wordcloud_highres(
 # --- MAIN EXECUTION ---
 if __name__ == "__main__":
     df = load_chat_data(INPUT_FOLDER)
-    get_counts(df)
 
     # --- ALL MESSAGES ---
-    all_text = " ".join(df["message"].dropna().astype(str).tolist())
-    word_counts = Counter(all_text.split())
-    print(word_counts.most_common(50))
-    print(len(word_counts))
-    generate_wordcloud_highres(all_text, OUTPUT_ALL, mask_image=MASK_IMAGE)
+    freqs = {"GooseChanWan": 1000, "honk": 1}
+    generate_wordcloud_highres(freqs, OUTPUT_ALL, mask_image=MASK_IMAGE)
 
-    # --- MEANINGFUL MESSAGES ---
-    # df["is_meaningful"] = df["message"].apply(is_meaningful)
-    # meaningful_df = df[df["is_meaningful"]]
-    # meaningful_df.to_csv("outputs/Meaningful_df.csv", index=False)
-
-    # meaningful_text = " ".join(meaningful_df["message"].dropna().astype(str).tolist())
-    # generate_wordcloud_highres(meaningful_text, OUTPUT_MEANINGFUL, mask_image=MASK_IMAGE)
-
-    # Keep only usernames with ASCII alphanumeric characters AND UNDERSCORES
-
-    alphanumeric_usernames = df["user_name"].dropna().astype(str).apply(
-        lambda x: x if re.fullmatch(r'[A-Za-z0-9_]+', x) else None
-    ).dropna()
-
-
-    # Join them for the word cloud
-    usernames_text = " ".join(alphanumeric_usernames.tolist())
-    generate_wordcloud_highres(usernames_text, OUTPUT_USERNAMES, mask_image=MASK_IMAGE)
+    
