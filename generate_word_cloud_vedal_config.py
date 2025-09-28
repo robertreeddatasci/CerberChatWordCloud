@@ -201,7 +201,7 @@ def generate_wordcloud_highres(
     wordcloud = WordCloud(
         width=w_scaled,
         height=h_scaled,
-        background_color="teal",
+        background_color="white",
         mask=mask_image,
         stopwords=stopwords,
         contour_width=3,
@@ -253,9 +253,12 @@ if __name__ == "__main__":
     # generate_wordcloud_highres(meaningful_text, OUTPUT_MEANINGFUL, mask_image=MASK_IMAGE)
 
     # Keep only usernames with ASCII alphanumeric characters
+
+
     alphanumeric_usernames = df["user_name"].dropna().astype(str).apply(
-        lambda x: x if re.fullmatch(r'[A-Za-z0-9]+', x) else None
+        lambda x: x if re.fullmatch(r'[A-Za-z0-9_]+', x) else None
     ).dropna()
+
 
     # Join them for the word cloud
     usernames_text = " ".join(alphanumeric_usernames.tolist())
