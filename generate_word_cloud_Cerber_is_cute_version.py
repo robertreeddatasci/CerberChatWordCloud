@@ -1,247 +1,75 @@
-import pandas as pd
-import numpy as np
-import csv
 import os
-import re
-import glob
-from PIL import Image
-from datetime import datetime
-from wordcloud import WordCloud, STOPWORDS, ImageColorGenerator
+import random
+from PIL import Image, ImageDraw, ImageFont
+import numpy as np
 import matplotlib.pyplot as plt
 
+# --- CONFIG ---
+OUTPUT_NAME = "chat_wordcloud.png"
+MASK_IMAGE_PATH = "inputs/Minawan color Drawing large.png"
+FONT_PATH = "C:/Users/rober/AppData/Local/Microsoft/Windows/Fonts/RobotoSlab-VariableFont_wght.ttf"
 
-# --- CONFIGURATION ---
-INPUT_FOLDER = "inputs/Cerber_Twitch_Chat"
-OUTPUT_ALL = "chat_wordcloud.png"
-OUTPUT_MEANINGFUL = "meaningful_chat_wordcloud.png"
-OUTPUT_USERNAMES = "usernames_wordcloud.png"
-MASK_IMAGE = np.array(Image.open("inputs/Minawan color Drawing large.png")) #"Minawan color purple Drawing large.png"
-h, w = MASK_IMAGE.shape[:2] 
-print(f'h:{h}, w:{w}')
+# Load mask
+mask_img = Image.open(MASK_IMAGE_PATH).convert("RGB")
+MASK_IMAGE = np.array(mask_img)
+h, w = MASK_IMAGE.shape[:2]
 
-# --- CUSTOM STOPWORDS ---
-stopwords = set(STOPWORDS)
-stopwords.update(["lol", "lmao", "pog", "gg", "haha", "tier", "sub"])
+# Create boolean mask: True = allowed for placement
+# Here: non-white pixels are allowed
+mask_allowed = np.any(MASK_IMAGE < 250, axis=2)
 
-# --- PHRASES TO BLOCK ---
-BLOCKED_PHRASES = [
-    "is gifting",
-    "gifted a total of",
-    "just subscribed",
-    "just resubscribed"
-]
+# Words and counts
+words_to_draw = {"GooseChanWan": 1000, "honk": 1}
+font_size_range = (20, 50)
+honk_size = 10
 
-# --- FUNCTION: Filter Messages ---
-def is_meaningful(message: str) -> bool:
-    msg = message.strip()
+# Occupancy map to prevent overlaps
+occupied = np.zeros((h, w), dtype=bool)
 
-    for phrase in BLOCKED_PHRASES:
-        if phrase.lower() in msg.lower():
-            return False
-
-    if msg.startswith("!"):  # commands
+def can_place(x, y, w_word, h_word):
+    if x + w_word >= w or y + h_word >= h:
         return False
-
-    if len(msg) < 55:  # too short
+    if occupied[y:y+h_word, x:x+w_word].any():
         return False
-
-    if not re.search(r'[A-Za-z]', msg):  # no letters
+    if not mask_allowed[y:y+h_word, x:x+w_word].all():
         return False
-
-    words = re.findall(r'\w+', msg.lower())
-    unique_words = set(words)
-
-    if len(unique_words) / max(len(words), 1) < 0.3:  # heavy repetition
-        return False
-
     return True
 
-# --- FUNCTION: Load and Parse CSVs ---
-def load_chat_data(folder: str) -> pd.DataFrame:
-    records = []
-    file_counts = {}
+def mark_occupied(x, y, w_word, h_word):
+    occupied[y:y+h_word, x:x+w_word] = True
 
-    for f in glob.glob(os.path.join(folder, "*.csv")):
-        line_count = 0
-        with open(f, "r", encoding="utf-8") as infile:
-            reader = csv.DictReader(infile)
-            for row in reader:
-                records.append([row["time"], row["user_name"], row["user_color"], row["message"]])
-                line_count += 1
-        file_counts[os.path.basename(f)] = line_count
+# Create image
+img = Image.new("RGB", (w, h), color="black")
+draw = ImageDraw.Draw(img)
 
-    df = pd.DataFrame(records, columns=["time", "user_name", "user_color", "message"])
-    print("✅ File loading complete. Lines per file:")
-    for file, count in file_counts.items():
-        print(f"  {file}: {count} lines")
-    print(f"TOTAL: {len(df)} messages across {len(file_counts)} files.")
-    return df
+for word, count in words_to_draw.items():
+    for i in range(count):
+        font_size = honk_size if word == "honk" else random.randint(*font_size_range)
+        font = ImageFont.truetype(FONT_PATH, font_size)
+        bbox = font.getbbox(word)
+        word_width = bbox[2] - bbox[0]
+        word_height = bbox[3] - bbox[1]
 
+        # Try random positions until we find a valid one
+        for attempt in range(500):
+            x = random.randint(0, w - word_width)
+            y = random.randint(0, h - word_height)
+            if can_place(x, y, word_width, word_height):
+                # Sample color from mask
+                fill_color = tuple(MASK_IMAGE[y, x][:3])
+                draw.text((x, y), word, font=font, fill=fill_color)
+                mark_occupied(x, y, word_width, word_height)
+                break
+        else:
+            print(f"⚠️ Could not place word '{word}' (attempted 500 times)")
 
-def get_counts(df):
-    print(df.head())
+# --- Save output ---
+os.makedirs("outputs", exist_ok=True)
+output_path = os.path.join("outputs", OUTPUT_NAME)
+img.save(output_path)
+print(f"✅ Saved word cloud as {output_path}")
 
-    user_message_counts_df = (
-        df.groupby("user_name")
-        .agg(message_count=("message", "count"))
-        .reset_index()
-        .sort_values("message_count", ascending=False)
-        .reset_index(drop=True)
-    )
-
-    # Compute percentages
-    total_messages = user_message_counts_df["message_count"].sum()
-    user_message_counts_df["percentage"] = (
-        user_message_counts_df["message_count"] / total_messages * 100
-    ).round(2)
-
-    print(user_message_counts_df.head(25))
-    return
-
-
-# --- FUNCTION: Generate Word Cloud ---
-def generate_wordcloud(text: str, output_file: str, mask_image=None, use_image_colors=True, timestamp=True):
-    """
-    Generate a word cloud from the given text and save it inside an 'outputs' subfolder.
-
-    Parameters:
-        text (str): The text to generate the word cloud from.
-        output_file (str): The filename to use for saving the image (e.g., 'wordcloud.png').
-        mask_image (ndarray or None): Mask to shape the word cloud (optional).
-        use_image_colors (bool): Whether to recolor the words based on the mask image.
-        timestamp (bool): If True, adds a timestamp to the filename to avoid overwriting.
-    """
-    # --- Ensure outputs folder exists ---
-    os.makedirs("outputs", exist_ok=True)
-
-    # --- Optionally add timestamp to filename ---
-    if timestamp:
-        name, ext = os.path.splitext(output_file)
-        output_file = f"{name}_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}{ext}"
-
-    output_path = os.path.join("outputs", output_file)
-
-    print(f"Generating word cloud → {output_path}")
-
-    # --- Generate the word cloud ---
-    wordcloud = WordCloud(
-        width=w,
-        height=h,
-        background_color="black",
-        mask=mask_image,
-        stopwords=stopwords,
-        contour_width=3,
-        contour_color="white",
-        collocations=False,
-        min_font_size=12,
-        max_font_size=70,
-        max_words=10000,
-        font_path="C:/Users/rober/AppData/Local/Microsoft/Windows/Fonts/RobotoSlab-VariableFont_wght.ttf"
-    ).generate(text)
-
-    # --- Recolor based on mask image if requested ---
-    if use_image_colors and mask_image is not None:
-        image_colors = ImageColorGenerator(mask_image)
-        wordcloud.recolor(color_func=image_colors)
-
-    # --- Save at high resolution with no padding ---
-    wc_array = wordcloud.to_array()
-    h_px, w_px = wc_array.shape[:2]
-    dpi = 300
-    plt.figure(figsize=(w_px / dpi, h_px / dpi), dpi=dpi)
-    plt.imshow(wc_array, interpolation="bilinear")
-    plt.axis("off")
-    plt.savefig(output_path, dpi=dpi, bbox_inches="tight", pad_inches=0)
-    plt.close()
-
-    print(f"✅ Saved word cloud as {output_path}")
-    return output_path
-
-def generate_wordcloud_highres(
-    text: str,
-    output_file: str,
-    mask_image=None,
-    use_image_colors=True,
-    timestamp=True,
-    scale_factor=2
-):
-    """
-    Generate a high-resolution word cloud optimized for zooming, modeled after the original function.
-
-    Parameters:
-        text (str): The text to generate the word cloud from.
-        output_file (str): The filename to use for saving the image (e.g., 'wordcloud.png').
-        mask_image (ndarray or None): Mask to shape the word cloud (optional).
-        use_image_colors (bool): Whether to recolor the words based on the mask image.
-        timestamp (bool): If True, adds a timestamp to the filename to avoid overwriting.
-        scale_factor (int): Factor to scale width and height for higher resolution.
-    """
-    # --- Ensure outputs folder exists ---
-    os.makedirs("outputs", exist_ok=True)
-
-    # --- Optionally add timestamp to filename ---
-    if timestamp:
-        name, ext = os.path.splitext(output_file)
-        output_file = f"{name}_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}{ext}"
-
-    output_path = os.path.join("outputs", output_file)
-
-    print(f"Generating high-res word cloud → {output_path}")
-
-    # --- Determine scaled width and height ---
-    if mask_image is not None:
-        h_scaled, w_scaled = mask_image.shape[:2]
-        h_scaled *= scale_factor
-        w_scaled *= scale_factor
-    else:
-        w_scaled, h_scaled = 2400*scale_factor, 1600*scale_factor  # fallback size
-
-    # --- Generate the word cloud ---
-    wc = WordCloud(
-        width=w_scaled,
-        height=h_scaled,
-        background_color="black",
-        mask=mask_image,
-        stopwords=stopwords,
-        contour_width=3,
-        contour_color="white",
-        collocations=False,
-        min_font_size=12,
-        max_font_size=50,
-        max_words=10000,
-        font_path="C:/Users/rober/AppData/Local/Microsoft/Windows/Fonts/RobotoSlab-VariableFont_wght.ttf"
-    )
-
-    if isinstance(text, dict):
-        wordcloud = wc.generate_from_frequencies(text)
-    else:
-        wordcloud = wc.generate(text)
-
-    # --- Recolor based on mask image if requested ---
-    if use_image_colors and mask_image is not None:
-        image_colors = ImageColorGenerator(mask_image)
-        wordcloud.recolor(color_func=image_colors)
-
-    # --- Save at high resolution with no padding ---
-    wc_array = wordcloud.to_array()
-    h_px, w_px = wc_array.shape[:2]
-    dpi = 300
-    plt.figure(figsize=(w_px / dpi, h_px / dpi), dpi=dpi)
-    plt.imshow(wc_array, interpolation="bilinear")
-    plt.axis("off")
-    plt.savefig(output_path, dpi=dpi, bbox_inches="tight", pad_inches=0)
-    plt.close()
-
-    print(f"✅ Saved high-res word cloud as {output_path}")
-    return output_path
-
-
-# --- MAIN EXECUTION ---
-if __name__ == "__main__":
-    df = load_chat_data(INPUT_FOLDER)
-
-    # --- ALL MESSAGES ---
-    freqs = {"GooseChanWan": 1000, "honk": 1}
-    generate_wordcloud_highres(freqs, OUTPUT_ALL, mask_image=MASK_IMAGE)
-
-    
+# Optional: display
+plt.imshow(img)
+plt.axis("off")
+plt.show()
